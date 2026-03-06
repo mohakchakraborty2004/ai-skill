@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  name          String?
+  
+  // Relations
+  resume        ResumeData?
+  github        GithubProfile?
+  evaluations   Evaluation[]
+  
+  createdAt     DateTime        @default(now())
+}
+
+model ResumeData {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  skills      String[]    // Store extracted skills as JSON array: ["Next.js", "TypeScript", "Prisma"]
+  experience  Int      // Years of experience extracted by Gemini
+  
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model GithubProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  username       String   @unique
+  topLanguages   String[]   // Store detected languages as JSON array: ["TypeScript", "Python"]
+  totalCommits   Int      // Commits in the last 90 days
+  totalStars     Int      // Sum of stars across top repos
+  
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+model Evaluation {
+  id            String   @id @default(cuid())
+  userId        String
+  score         Int      // The calculated Credibility Score (0-100)
+  feedback      String   // AI-generated roadmap/feedback text
+  
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+}
