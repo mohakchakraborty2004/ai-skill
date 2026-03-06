@@ -7,6 +7,7 @@ import { getOrCreateTestUser } from "@/actions/user.actions";
 import { processGithubProfile } from "@/actions/github.actions";
 import { processResume } from "@/actions/resume.actions";
 import { generateEvaluation } from "@/actions/evaluations.action";
+import { processChatChallenge } from "@/actions/chat.action";
 
 // Define the structure for our chat/terminal messages
 type Message = {
@@ -96,7 +97,7 @@ export default function Home() {
   };
 
   // Mock handler for challenging the score (We will wire this to a Server Action next)
-  const handleChallengeSubmit = async (e: React.FormEvent) => {
+const handleChallengeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!challengeInput.trim() || isJudging) return;
 
@@ -105,17 +106,33 @@ export default function Home() {
     addMessage("user", userText);
     setIsJudging(true);
 
-    // Mock network delay for the AI Judge thinking
-    setTimeout(() => {
-      addMessage(
-        "judge", 
-        "I have reviewed your claim. I see the context you provided regarding your private organization repositories. I am adjusting your Project Complexity weight and recalculating.\n\n**New Score: +15 Points.**", 
-        true
-      );
-      setIsJudging(false);
-    }, 2000);
-  };
+    try {
+      // We need the userId. In a real app, you'd get this from session/auth.
+      // Since we generated it in handleSubmit, let's fetch the dummy user again or store it in state.
+      // For this MVP, we will just call the helper to get our test user ID again.
+      const userId = await getOrCreateTestUser(); 
+      
+      const chatRes = await processChatChallenge(userId, userText);
+      
+      if (!chatRes.success || !chatRes.data) {
+         throw new Error(chatRes.error);
+      }
 
+      // 1. Post the AI's response in the chat
+      addMessage("judge", chatRes.data.reply, true);
+
+      // 2. If the score changed, update the UI's big glowing score!
+      if (chatRes.data.delta > 0) {
+        setResult(prev => prev ? { ...prev, score: chatRes.data.newScore } : null);
+        addMessage("system", `> SYSTEM OVERRIDE: Score recalibrated. +${chatRes.data.delta} points awarded.`);
+      }
+
+    } catch (err: any) {
+      addMessage("judge", `**Error:** I could not process that request right now. ${err.message}`, true);
+    } finally {
+      setIsJudging(false);
+    }
+  };
   return (
     <main className="min-h-screen bg-black text-white p-6 overflow-hidden flex items-center justify-center font-sans">
       
