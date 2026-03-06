@@ -1,11 +1,14 @@
 "use client";
 import Image from "next/image";
 import { Inter, Caveat } from "next/font/google";
+import { use } from "react";
+import { useRouter } from "next/navigation";
 
 const inter = Inter({ subsets: ["latin"] });
 const cursive = Caveat({ subsets: ["latin"], weight: ["400", "700"] });
 
 export default function Home() {
+  const navigate = useRouter();
   return (
     <main
       className={`h-screen w-screen bg-black text-white ${inter.className} overflow-hidden flex flex-col`}
@@ -43,7 +46,9 @@ export default function Home() {
           </p>
 
           <div className="flex items-center gap-6">
-            <button className="px-8 py-4 bg-[#b026ff] hover:bg-[#9015d8] text-white font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(176,38,255,0.4)] hover:shadow-[0_0_30px_rgba(176,38,255,0.6)]">
+            <button 
+              onClick={() => navigate.push("/getScore")}
+              className="px-8 py-4 bg-[#b026ff] hover:bg-[#9015d8] text-white font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(176,38,255,0.4)] hover:shadow-[0_0_30px_rgba(176,38,255,0.6)]">
               Start Evaluation
             </button>
             <button className="px-8 py-4 bg-transparent border border-gray-700 hover:border-[#b026ff] text-gray-300 hover:text-white transition-all duration-300">

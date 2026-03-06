@@ -1,6 +1,8 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import Sidebar from "@/components/sidebar";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,7 +14,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-
+// Updated Metadata for your project
 export const metadata: Metadata = {
   title: "Dev Insight | AI Skill Evaluator",
   description: "Cryptographically verify your technical claims using AI and GitHub data.",
@@ -26,9 +28,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white overflow-hidden`}
       >
-        {children}
+        {/* Main Application Wrapper */}
+        <div className="flex h-screen w-full">
+          
+          {/* Inject the Sidebar */}
+          <Sidebar />
+
+          {/* Main Content Area */}
+          <main className="flex-1 h-full overflow-y-auto relative custom-scrollbar">
+            {children}
+          </main>
+          
+        </div>
       </body>
     </html>
   );
