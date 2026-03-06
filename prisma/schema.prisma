@@ -44,11 +44,25 @@ model GithubProfile {
 }
 
 model Evaluation {
-  id            String   @id @default(cuid())
-  userId        String
-  score         Int      // The calculated Credibility Score (0-100)
-  feedback      String   // AI-generated roadmap/feedback text
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  score           Int          // The current active score
+  baselineScore   Int          // What the math formula originally gave them
+  feedback        String       // The original AI roadmap
   
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
+  disputes        DisputeLog[] // Relation to their chat arguments
+  
+  createdAt       DateTime     @default(now())
+  user            User         @relation(fields: [userId], references: [id])
+}
+
+model DisputeLog {
+  id              String     @id @default(cuid())
+  evaluationId    String
+  userClaim       String     // What the user argued
+  aiReasoning     String     // Why the AI accepted or rejected it
+  scoreDelta      Int        
+  
+  createdAt       DateTime   @default(now())
+  evaluation      Evaluation @relation(fields: [evaluationId], references: [id])
 }

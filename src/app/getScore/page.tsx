@@ -1,26 +1,52 @@
 // src/app/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { getOrCreateTestUser } from "@/actions/user.actions";
 import { processGithubProfile } from "@/actions/github.actions";
 import { processResume } from "@/actions/resume.actions";
-import { generateEvaluation } from "@/actions/evaluations.action"; // Make sure file name matches your project
+import { generateEvaluation } from "@/actions/evaluations.action";
+
+// Define the structure for our chat/terminal messages
+type Message = {
+  id: string;
+  role: "system" | "judge" | "user";
+  content: string;
+  isMarkdown?: boolean;
+};
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false); // Triggers the layout shift
-  const [step, setStep] = useState("");
+  const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ score: number; feedback: string } | null>(null);
+  
+  // Chat Judge State
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [challengeInput, setChallengeInput] = useState("");
+  const [isJudging, setIsJudging] = useState(false);
+  
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll chat to bottom when messages update
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const addMessage = (role: Message["role"], content: string, isMarkdown = false) => {
+    setMessages((prev) => [...prev, { id: Math.random().toString(), role, content, isMarkdown }]);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setHasStarted(true); // Trigger the smooth slide animation
+    setHasStarted(true);
     setLoading(true);
     setError("");
     setResult(null);
+    setMessages([]); // Reset chat
 
     const formData = new FormData(e.currentTarget);
     const githubUsername = formData.get("githubUsername") as string;
@@ -33,18 +59,20 @@ export default function Home() {
     }
 
     try {
-      setStep("Initializing User...");
+      addMessage("system", "> Initializing secure environment...");
       const userId = await getOrCreateTestUser();
 
-      setStep("Fetching GitHub Data...");
+      addMessage("system", `> Scanning GitHub profile for @${githubUsername}...`);
       const githubRes = await processGithubProfile(userId, githubUsername);
       if (!githubRes.success) throw new Error(githubRes.error);
+      addMessage("system", `> Found GitHub data. Extracting contribution graph & language distributions...`);
 
-      setStep("Analyzing Resume with Gemini...");
+      addMessage("system", "> Parsing Resume PDF via Vision AI...");
       const resumeRes = await processResume(userId, formData);
       if (!resumeRes.success) throw new Error(resumeRes.error);
+      addMessage("system", "> Extracted skill matrix. Aligning claims vs cryptographic proof...");
 
-      setStep("Calculating Credibility Score...");
+      addMessage("system", "> Analyzing complexity & calculating final credibility score...");
       const evalRes = await generateEvaluation(userId);
       
       if (!evalRes.success || !evalRes.data) {
@@ -55,150 +83,205 @@ export default function Home() {
         score: evalRes.data.score,
         feedback: evalRes.data.feedback,
       });
-      setStep("Evaluation Complete.");
+
+      // Post the final evaluation as the Judge
+      addMessage("judge", evalRes.data.feedback, true);
+
     } catch (err: any) {
       setError(err.message || "Something went wrong during evaluation.");
+      addMessage("system", `> ERROR: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  // Mock handler for challenging the score (We will wire this to a Server Action next)
+  const handleChallengeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!challengeInput.trim() || isJudging) return;
+
+    const userText = challengeInput;
+    setChallengeInput("");
+    addMessage("user", userText);
+    setIsJudging(true);
+
+    // Mock network delay for the AI Judge thinking
+    setTimeout(() => {
+      addMessage(
+        "judge", 
+        "I have reviewed your claim. I see the context you provided regarding your private organization repositories. I am adjusting your Project Complexity weight and recalculating.\n\n**New Score: +15 Points.**", 
+        true
+      );
+      setIsJudging(false);
+    }, 2000);
+  };
+
   return (
-    <main className="min-h-screen bg-black text-white p-6 overflow-hidden flex items-center justify-center">
-      {/* The outer wrapper controls the flex layout. 
-        When hasStarted is false, it centers the 1st div. 
-        When true, it expands to 6xl and puts them side-by-side. 
-      */}
+    <main className="min-h-screen bg-black text-white p-6 overflow-hidden flex items-center justify-center font-sans">
+      
       <div 
         className={`w-full transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] flex flex-col md:flex-row gap-6 ${
-          hasStarted ? "max-w-6xl items-stretch" : "max-w-xl items-center justify-center"
+          hasStarted ? "max-w-7xl items-stretch h-[85vh]" : "max-w-xl items-center justify-center"
         }`}
       >
         
-        {/* LEFT PANEL: The Form */}
+        {/* ================= LEFT PANEL: The Input & Results ================= */}
         <div 
-          className={`w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-2xl shadow-2xl p-8 transition-all duration-700 relative z-10 ${
-            hasStarted ? "md:w-1/3" : "w-full"
+          className={`bg-[#050505] border border-[#1a1a1a] rounded-2xl shadow-2xl p-8 transition-all duration-700 relative z-10 flex flex-col overflow-y-auto custom-scrollbar ${
+            hasStarted ? "w-full md:w-1/3" : "w-full"
           }`}
         >
-          {/* Subtle purple glow behind the card */}
-          <div className="absolute inset-0 bg-[#b026ff] opacity-5 blur-[100px] rounded-full pointer-events-none"></div>
+          <div className="absolute inset-0 bg-[#b026ff] opacity-[0.03] pointer-events-none"></div>
 
-          <h1 className="text-3xl font-bold text-white mb-2 tracking-wide">
-            Skill Sync
-          </h1>
-          <p className="text-gray-400 mb-8 text-sm leading-relaxed">
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-wide">Skill Sync</h1>
+          <p className="text-gray-500 mb-8 text-sm leading-relaxed">
             Upload your resume and link your GitHub to cryptographically verify your technical claims.
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+          {/* If result exists, show the score prominently here */}
+          {result && (
+            <div className="mb-8 p-6 bg-black border border-[#2a0d45] rounded-xl flex flex-col items-center justify-center relative overflow-hidden group">
+              <div className="absolute inset-0 bg-[#b026ff] blur-3xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
+              <h2 className="text-gray-400 text-xs uppercase tracking-widest mb-2 relative z-10">Baseline Score</h2>
+              <div className="text-6xl font-black text-white relative z-10 drop-shadow-[0_0_15px_rgba(176,38,255,0.5)]">
+                {result.score}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6 relative z-10 flex-1">
             <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-2">
-                GitHub Username
-              </label>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">GitHub Username</label>
               <input
                 type="text"
                 name="githubUsername"
                 placeholder="e.g., torvalds"
-                className="w-full px-4 py-3 bg-black border border-gray-800 rounded-lg text-white placeholder-gray-600 focus:ring-1 focus:ring-[#b026ff] focus:border-[#b026ff] outline-none transition-all"
+                disabled={loading || !!result}
+                className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#222] rounded-lg text-white focus:ring-1 focus:ring-[#b026ff] focus:border-[#b026ff] outline-none transition-all disabled:opacity-50"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-2">
-                Resume (PDF)
-              </label>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Resume (PDF)</label>
               <input
                 type="file"
                 name="resume"
                 accept="application/pdf"
-                className="w-full px-4 py-3 bg-black border border-gray-800 rounded-lg text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#b026ff]/10 file:text-[#b026ff] hover:file:bg-[#b026ff]/20 outline-none transition-all cursor-pointer"
+                disabled={loading || !!result}
+                className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#222] rounded-lg text-gray-400 file:mr-4 file:py-1.5 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-[#1a0529] file:text-[#b026ff] hover:file:bg-[#2a0d45] outline-none transition-all cursor-pointer disabled:opacity-50"
                 required
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#b026ff] hover:bg-[#9015d8] text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(176,38,255,0.3)] hover:shadow-[0_0_25px_rgba(176,38,255,0.6)]"
-            >
-              {loading ? "Processing..." : "Calculate Score"}
-            </button>
+            {!result && (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#b026ff] hover:bg-[#9015d8] text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 disabled:opacity-50 shadow-[0_0_15px_rgba(176,38,255,0.2)]"
+              >
+                {loading ? "Initializing..." : "Calculate Score"}
+              </button>
+            )}
           </form>
 
-          {error && (
-            <div className="mt-6 p-4 bg-red-950/30 border border-red-900/50 text-red-400 rounded-lg text-sm relative z-10">
-              {error}
-            </div>
-          )}
+          {error && <div className="mt-4 p-3 bg-red-950/30 border border-red-900/50 text-red-400 rounded-lg text-sm">{error}</div>}
         </div>
 
-        {/* RIGHT PANEL: Loading / Results */}
+        {/* ================= RIGHT PANEL: The Live Chat Judge ================= */}
         {hasStarted && (
-          <div 
-            className="w-full md:w-2/3 bg-[#050505] border border-[#1f1f1f] rounded-2xl p-8 lg:p-12 relative overflow-hidden flex flex-col transition-all duration-700 animate-in fade-in slide-in-from-right-8"
-          >
-            {loading ? (
-              /* Shimmering Loading State */
-              <div className="flex-1 flex flex-col items-center justify-center space-y-8 h-full min-h-[400px]">
-                {/* Pulsing purple orb */}
-                <div className="w-24 h-24 rounded-full border border-[#b026ff]/30 flex items-center justify-center relative">
-                  <div className="absolute inset-0 rounded-full border-t-2 border-[#b026ff] animate-spin"></div>
-                  <div className="w-16 h-16 bg-[#b026ff] rounded-full blur-xl animate-pulse opacity-40"></div>
-                </div>
-                
-                <div className="text-center space-y-2">
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-400 via-white to-gray-400 bg-clip-text text-transparent animate-pulse">
-                    Evaluating Profile
-                  </h3>
-                  <p className="text-[#b026ff] font-mono text-sm tracking-widest animate-pulse">
-                    {step}
-                  </p>
-                </div>
+          <div className="w-full md:w-2/3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl relative overflow-hidden flex flex-col transition-all duration-700 animate-in fade-in slide-in-from-right-8">
+            
+            {/* Header */}
+            <div className="h-16 border-b border-[#1a1a1a] flex items-center px-6 bg-black/50 backdrop-blur-md z-20">
+              <div className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-yellow-500 animate-pulse" : "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"}`}></div>
+                <h3 className="text-sm font-bold text-gray-200 tracking-wider">AI EVALUATION JUDGE</h3>
               </div>
-            ) : result ? (
-              /* Final Result State */
-              <div className="flex-1 animate-in fade-in duration-500">
-                <div className="flex items-start justify-between mb-10 pb-6 border-b border-[#1f1f1f]">
-                  <div>
-                    <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">
-                      Final Assessment
-                    </h2>
-                    <h3 className="text-3xl font-bold text-white">Credibility Report</h3>
-                  </div>
+            </div>
+
+            {/* Message Area */}
+            <div 
+              ref={chatScrollRef}
+              className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar scroll-smooth"
+            >
+              {messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   
-                  {/* Glowing Score Badge */}
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-[#b026ff] blur-lg opacity-50 rounded-full"></div>
-                    <div className="relative bg-black border-2 border-[#b026ff] px-6 py-3 rounded-full flex items-center gap-2 shadow-[0_0_20px_rgba(176,38,255,0.4)]">
-                      <span className="text-3xl font-black text-white">{result.score}</span>
-                      <span className="text-gray-400 font-bold text-lg">/ 100</span>
+                  {/* System Terminal Messages */}
+                  {msg.role === "system" && (
+                    <div className="text-gray-500 font-mono text-xs w-full animate-in fade-in slide-in-from-bottom-2">
+                      {msg.content}
                     </div>
+                  )}
+
+                  {/* AI Judge Messages */}
+                  {msg.role === "judge" && (
+                    <div className="max-w-[85%] bg-[#12051c] border border-[#2a0d45] rounded-2xl rounded-tl-sm p-5 shadow-lg animate-in fade-in slide-in-from-left-4">
+                      {msg.isMarkdown ? (
+                        <div className="prose prose-invert prose-purple max-w-none text-sm leading-relaxed prose-headings:text-white prose-a:text-[#b026ff]">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-gray-300 text-sm">{msg.content}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* User Dispute Messages */}
+                  {msg.role === "user" && (
+                    <div className="max-w-[75%] bg-[#1a1a1a] border border-[#333] rounded-2xl rounded-tr-sm p-4 animate-in fade-in slide-in-from-right-4">
+                      <p className="text-gray-200 text-sm">{msg.content}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {isJudging && (
+                <div className="flex justify-start">
+                  <div className="bg-[#12051c] border border-[#2a0d45] rounded-2xl rounded-tl-sm p-4 flex gap-2 items-center">
+                    <div className="w-2 h-2 bg-[#b026ff] rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-[#b026ff] rounded-full animate-bounce [animation-delay:-.3s]"></div>
+                    <div className="w-2 h-2 bg-[#b026ff] rounded-full animate-bounce [animation-delay:-.5s]"></div>
                   </div>
                 </div>
-                
-                {/* Markdown Rendering Container */}
-                <div className="prose prose-invert prose-purple max-w-none">
-                  <ReactMarkdown
-                    components={{
-                      h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mt-6 mb-4" {...props} />,
-                      h2: ({node, ...props}) => <h2 className="text-xl font-bold text-gray-200 mt-5 mb-3" {...props} />,
-                      h3: ({node, ...props}) => <h3 className="text-lg font-bold text-[#b026ff] mt-4 mb-2" {...props} />,
-                      p: ({node, ...props}) => <p className="text-gray-300 leading-relaxed mb-4" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc list-inside text-gray-300 mb-4 space-y-2" {...props} />,
-                      li: ({node, ...props}) => <li className="text-gray-300" {...props} />,
-                      strong: ({node, ...props}) => <strong className="text-white font-bold" {...props} />,
-                    }}
+              )}
+            </div>
+
+            {/* Chat Input Footer (Only visible when baseline evaluation is done) */}
+            {result && (
+              <div className="p-4 bg-black border-t border-[#1a1a1a]">
+                <form onSubmit={handleChallengeSubmit} className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={challengeInput}
+                    onChange={(e) => setChallengeInput(e.target.value)}
+                    disabled={isJudging}
+                    placeholder="Dispute your score... (e.g. 'You missed my private AWS repo')"
+                    className="w-full bg-[#0a0a0a] border border-[#222] text-white text-sm rounded-xl py-4 pl-4 pr-32 focus:outline-none focus:border-[#b026ff] focus:ring-1 focus:ring-[#b026ff] transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!challengeInput.trim() || isJudging}
+                    className="absolute right-2 top-2 bottom-2 bg-[#b026ff] hover:bg-[#9015d8] text-white text-xs font-bold px-4 rounded-lg transition-all disabled:opacity-50"
                   >
-                    {result.feedback}
-                  </ReactMarkdown>
-                </div>
+                    Challenge
+                  </button>
+                </form>
               </div>
-            ) : null}
+            )}
+            
           </div>
         )}
       </div>
+
+      {/* Global styles for custom scrollbar hidden in tailwind */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1f1f1f; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #b026ff; }
+      `}} />
     </main>
   );
 }
