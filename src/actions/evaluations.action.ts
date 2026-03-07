@@ -81,6 +81,6 @@ const evaluation = await prisma.evaluation.create({
 
   } catch (error) {
     console.error("Evaluation Error:", error);
-    return { success: false, error: "Failed to generate evaluation." };
+    return { success: false, error: error };
   }
 }

@@ -77,7 +77,8 @@ export default function Home() {
       const evalRes = await generateEvaluation(userId);
       
       if (!evalRes.success || !evalRes.data) {
-        throw new Error(evalRes.error || "Failed to generate evaluation.");
+        console.error("Evaluation error:", evalRes.error);
+        throw new Error("Failed to generate evaluation.");
       }
 
       setResult({
