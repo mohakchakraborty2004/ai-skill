@@ -46,14 +46,28 @@ model GithubProfile {
 model Evaluation {
   id              String       @id @default(cuid())
   userId          String       @unique
-  score           Int          // The current active score
-  baselineScore   Int          // What the math formula originally gave them
-  feedback        String       // The original AI roadmap
+  score           Int
+  baselineScore   Int
+  feedback        String
   
-  disputes        DisputeLog[] // Relation to their chat arguments
+  disputes        DisputeLog[]
+  peerRatings     PeerRating[] // <-- ADD THIS LINE
   
   createdAt       DateTime     @default(now())
   user            User         @relation(fields: [userId], references: [id])
+}
+
+// The new model for the crowdsourced ground truth
+model PeerRating {
+  id              String     @id @default(cuid())
+  evaluationId    String
+  
+  humanScore      Int        // The 0-100 score the peer suggested
+  reviewerRole    String     // e.g., "Senior Software Engineer"
+  remarks         String     @db.Text // The justification they typed out
+  
+  createdAt       DateTime   @default(now())
+  evaluation      Evaluation @relation(fields: [evaluationId], references: [id])
 }
 
 model DisputeLog {
