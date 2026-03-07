@@ -68,11 +68,19 @@ export async function generateEvaluation(userId: string) {
     const feedbackText = response.text || "Keep building and pushing code to GitHub to improve your score!";
 
     // 7. Save the Evaluation
-const evaluation = await prisma.evaluation.create({
-      data: {
+const evaluation = await prisma.evaluation.upsert({
+      where: { 
+        userId: userId 
+      },
+      update: {
+        score: finalScore,
+        baselineScore: finalScore,
+        feedback: feedbackText,
+      },
+      create: {
         userId: userId,
         score: finalScore,
-        baselineScore: finalScore, 
+        baselineScore: finalScore,
         feedback: feedbackText,
       }
     });
