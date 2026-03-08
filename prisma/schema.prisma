@@ -11,72 +11,85 @@ datasource db {
 }
 
 model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  name          String?
-  
+  id          String         @id @default(cuid())
+  email       String         @unique
+  name        String?
+  password    String // Store hashed password
   // Relations
-  resume        ResumeData?
-  github        GithubProfile?
-  evaluations   Evaluation[]
-  
-  createdAt     DateTime        @default(now())
+  resume      ResumeData?
+  github      GithubProfile?
+  evaluations Evaluation[]
+
+  sessions      Session[]
+
+  createdAt DateTime @default(now())
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  // Relation back to the User
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ResumeData {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  skills      String[]    // Store extracted skills as JSON array: ["Next.js", "TypeScript", "Prisma"]
-  experience  Int      // Years of experience extracted by Gemini
-  
-  user        User     @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  skills     String[] // Store extracted skills as JSON array: ["Next.js", "TypeScript", "Prisma"]
+  experience Int // Years of experience extracted by Gemini
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model GithubProfile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  username       String   @unique
-  topLanguages   String[]   // Store detected languages as JSON array: ["TypeScript", "Python"]
-  totalCommits   Int      // Commits in the last 90 days
-  totalStars     Int      // Sum of stars across top repos
-  
-  user           User     @relation(fields: [userId], references: [id])
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  username     String   @unique
+  topLanguages String[] // Store detected languages as JSON array: ["TypeScript", "Python"]
+  totalCommits Int // Commits in the last 90 days
+  totalStars   Int // Sum of stars across top repos
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Evaluation {
-  id              String       @id @default(cuid())
-  userId          String       @unique
-  score           Int
-  baselineScore   Int
-  feedback        String
-  
-  disputes        DisputeLog[]
-  peerRatings     PeerRating[] // <-- ADD THIS LINE
-  
-  createdAt       DateTime     @default(now())
-  user            User         @relation(fields: [userId], references: [id])
+  id            String @id @default(cuid())
+  userId        String @unique
+  score         Int
+  baselineScore Int
+  feedback      String
+
+  disputes    DisputeLog[]
+  peerRatings PeerRating[] // <-- ADD THIS LINE
+
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 // The new model for the crowdsourced ground truth
 model PeerRating {
-  id              String     @id @default(cuid())
-  evaluationId    String
-  
-  humanScore      Int        // The 0-100 score the peer suggested
-  reviewerRole    String     // e.g., "Senior Software Engineer"
-  remarks         String     @db.Text // The justification they typed out
-  
-  createdAt       DateTime   @default(now())
-  evaluation      Evaluation @relation(fields: [evaluationId], references: [id])
+  id           String @id @default(cuid())
+  evaluationId String
+
+  humanScore   Int // The 0-100 score the peer suggested
+  reviewerRole String // e.g., "Senior Software Engineer"
+  remarks      String @db.Text // The justification they typed out
+
+  createdAt  DateTime   @default(now())
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id])
 }
 
 model DisputeLog {
-  id              String     @id @default(cuid())
-  evaluationId    String
-  userClaim       String     // What the user argued
-  aiReasoning     String     // Why the AI accepted or rejected it
-  scoreDelta      Int        
-  
-  createdAt       DateTime   @default(now())
-  evaluation      Evaluation @relation(fields: [evaluationId], references: [id])
+  id           String @id @default(cuid())
+  evaluationId String
+  userClaim    String // What the user argued
+  aiReasoning  String // Why the AI accepted or rejected it
+  scoreDelta   Int
+
+  createdAt  DateTime   @default(now())
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id])
 }
