@@ -37,6 +37,66 @@ export async function login(formData: FormData) {
 
   // 5. Set Secure Cookies
   const cookieStore = await cookies();
+
+  cookieStore.set("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 15 * 60, // 15 minutes
+  });
+
+  cookieStore.set("refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  });
+
+  return { success: true };
+}
+
+
+  export async function Signup(formData: FormData) {
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+    const name = formData.get("name") as string;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new Error("Email already in use");
+    }
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create the user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+      }
+    });
+
+    // Automatically log in the user after signup
+    const sessionId = crypto.randomUUID(); 
+    const accessToken = await signToken({ userId: user.id, sessionId }, "15m");
+    const refreshToken = await signToken({ userId: user.id, sessionId }, "7d");
+
+    await prisma.session.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        refreshToken: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      }
+    }); 
+
+  // 5. Set Secure Cookies
+  const cookieStore = await cookies();
   
   cookieStore.set("access_token", accessToken, {
     httpOnly: true,
@@ -56,6 +116,7 @@ export async function login(formData: FormData) {
 
   return { success: true };
 }
+
 
 export async function logout() {
   const cookieStore = await cookies();
