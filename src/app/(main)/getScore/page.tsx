@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { getOrCreateTestUser } from "@/actions/user.actions";
+import { getAuthenticatedUserId } from "@/actions/user.actions";
 import { processGithubProfile } from "@/actions/github.actions";
 import { processResume } from "@/actions/resume.actions";
 import { generateEvaluation } from "@/actions/evaluations.action";
@@ -22,11 +22,13 @@ export default function Home() {
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ score: number; feedback: string } | null>(null);
-  
+
   // Chat Judge State
   const [messages, setMessages] = useState<Message[]>([]);
   const [challengeInput, setChallengeInput] = useState("");
   const [isJudging, setIsJudging] = useState(false);
+  const [disputesRemaining, setDisputesRemaining] = useState(5);
+  const isLocked = disputesRemaining <= 0;
   
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +63,7 @@ export default function Home() {
 
     try {
       addMessage("system", "> Initializing secure environment...");
-      const userId = await getOrCreateTestUser();
+      const userId = await getAuthenticatedUserId();
 
       addMessage("system", `> Scanning GitHub profile for @${githubUsername}...`);
       const githubRes = await processGithubProfile(userId, githubUsername);
@@ -108,24 +110,37 @@ const handleChallengeSubmit = async (e: React.FormEvent) => {
     setIsJudging(true);
 
     try {
-      // We need the userId. In a real app, you'd get this from session/auth.
-      // Since we generated it in handleSubmit, let's fetch the dummy user again or store it in state.
-      // For this MVP, we will just call the helper to get our test user ID again.
-      const userId = await getOrCreateTestUser(); 
-      
+      const userId = await getAuthenticatedUserId();
+
       const chatRes = await processChatChallenge(userId, userText);
-      
+
+      // Handle chamber lock
+      if (!chatRes.success && (chatRes as any).locked) {
+        addMessage("system", `> CHAMBER LOCKED: All 5 dispute attempts exhausted. Score is final.`);
+        setDisputesRemaining(0);
+        return;
+      }
+
       if (!chatRes.success || !chatRes.data) {
-         throw new Error(chatRes.error);
+        throw new Error(chatRes.error);
       }
 
       // 1. Post the AI's response in the chat
       addMessage("judge", chatRes.data.reply, true);
 
-      // 2. If the score changed, update the UI's big glowing score!
+      // 2. Update disputes remaining
+      setDisputesRemaining(chatRes.data.disputesRemaining);
+
+      if (chatRes.data.disputesRemaining <= 0) {
+        addMessage("system", `> CHAMBER LOCKED: Final dispute used. Score is now permanent.`);
+      }
+
+      // 3. If the score changed, update the UI's big glowing score!
       if (chatRes.data.delta > 0) {
         setResult(prev => prev ? { ...prev, score: chatRes.data.newScore } : null);
-        addMessage("system", `> SYSTEM OVERRIDE: Score recalibrated. +${chatRes.data.delta} points awarded.`);
+        addMessage("system", `> SYSTEM OVERRIDE: Score recalibrated. +${chatRes.data.delta} points awarded. [${chatRes.data.disputesRemaining} chambers remaining]`);
+      } else {
+        addMessage("system", `> Claim rejected. [${chatRes.data.disputesRemaining} chambers remaining]`);
       }
 
     } catch (err: any) {
@@ -269,23 +284,30 @@ const handleChallengeSubmit = async (e: React.FormEvent) => {
             {/* Chat Input Footer (Only visible when baseline evaluation is done) */}
             {result && (
               <div className="p-4 bg-black border-t border-[#1a1a1a]">
-                <form onSubmit={handleChallengeSubmit} className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={challengeInput}
-                    onChange={(e) => setChallengeInput(e.target.value)}
-                    disabled={isJudging}
-                    placeholder="Dispute your score... (e.g. 'You missed my private AWS repo')"
-                    className="w-full bg-[#0a0a0a] border border-[#222] text-white text-sm rounded-xl py-4 pl-4 pr-32 focus:outline-none focus:border-[#b026ff] focus:ring-1 focus:ring-[#b026ff] transition-all"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!challengeInput.trim() || isJudging}
-                    className="absolute right-2 top-2 bottom-2 bg-[#b026ff] hover:bg-[#9015d8] text-white text-xs font-bold px-4 rounded-lg transition-all disabled:opacity-50"
-                  >
-                    Challenge
-                  </button>
-                </form>
+                {isLocked ? (
+                  <div className="text-center py-3 px-4 bg-red-950/20 border border-red-900/30 rounded-xl">
+                    <p className="text-red-400 text-xs font-bold tracking-wider">CHAMBER LOCKED — ALL 5 DISPUTES EXHAUSTED</p>
+                    <p className="text-gray-500 text-[10px] mt-1">Your score is now final and cannot be challenged further.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleChallengeSubmit} className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={challengeInput}
+                      onChange={(e) => setChallengeInput(e.target.value)}
+                      disabled={isJudging}
+                      placeholder={`Dispute your score... (${disputesRemaining} chamber${disputesRemaining !== 1 ? "s" : ""} remaining)`}
+                      className="w-full bg-[#0a0a0a] border border-[#222] text-white text-sm rounded-xl py-4 pl-4 pr-32 focus:outline-none focus:border-[#b026ff] focus:ring-1 focus:ring-[#b026ff] transition-all"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!challengeInput.trim() || isJudging}
+                      className="absolute right-2 top-2 bottom-2 bg-[#b026ff] hover:bg-[#9015d8] text-white text-xs font-bold px-4 rounded-lg transition-all disabled:opacity-50"
+                    >
+                      Challenge
+                    </button>
+                  </form>
+                )}
               </div>
             )}
             

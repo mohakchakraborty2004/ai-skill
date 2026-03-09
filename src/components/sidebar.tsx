@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { logout } from "@/actions/auth.action";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -50,10 +51,10 @@ export default function Sidebar() {
       {/* Logout Footer */}
       <div className="p-6 border-t border-[#1a1a1a]">
         <button 
-          onClick={() => {console.log("Logout triggered")
-
-            navigate.push("/")
-          }} // Wire to your auth later
+          onClick={async () => {
+            await logout();
+            navigate.push("/login");
+          }}
           className="w-full flex items-center justify-center px-4 py-3 rounded-lg border border-red-900/30 text-red-500 hover:bg-red-950/20 hover:text-red-400 transition-all duration-300 text-sm font-semibold"
         >
           Logout

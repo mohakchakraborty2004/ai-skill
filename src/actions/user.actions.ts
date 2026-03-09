@@ -1,15 +1,11 @@
 // src/actions/user.actions.ts
 "use server";
-import prisma from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
 
-export async function getOrCreateTestUser() {
-  const user = await prisma.user.upsert({
-    where: { email: "test@zynvo.com" },
-    update: {},
-    create: {
-      email: "test@zynvo.com",
-      name: "Test User",
-    },
-  });
-  return user.id;
+export async function getAuthenticatedUserId() {
+  const session = await getCurrentUser();
+  if (!session) {
+    throw new Error("Not authenticated");
+  }
+  return session.userId;
 }

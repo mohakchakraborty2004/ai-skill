@@ -36,6 +36,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const resume = data.resume;
   const evaluation = data.evaluations[0];
   const disputes = evaluation.disputes || [];
+  const [disputesRemaining, setDisputesRemaining] = useState(evaluation.disputesRemaining ?? 5);
+  const isLocked = disputesRemaining <= 0;
   const avatarUrl = `https://api.dicebear.com/7.x/notionists/svg?seed=${github.username}&backgroundColor=transparent`;
 
   // --- Handlers ---
@@ -64,13 +66,28 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
     try {
       const chatRes = await processChatChallenge(data.id, userText);
+
+      // Handle chamber lock
+      if (!chatRes.success && (chatRes as any).locked) {
+        addMessage("system", `> CHAMBER LOCKED: All 5 dispute attempts exhausted. Score is final.`);
+        setDisputesRemaining(0);
+        return;
+      }
+
       if (!chatRes.success || !chatRes.data) throw new Error(chatRes.error);
 
       addMessage("judge", chatRes.data.reply, true);
 
+      // Update disputes remaining
+      setDisputesRemaining(chatRes.data.disputesRemaining);
+
+      if (chatRes.data.disputesRemaining <= 0) {
+        addMessage("system", `> CHAMBER LOCKED: Final dispute used. Score is now permanent.`);
+      }
+
       if (chatRes.data.delta > 0) {
-        addMessage("system", `> SYSTEM OVERRIDE: +${chatRes.data.delta} points awarded.`);
-        
+        addMessage("system", `> SYSTEM OVERRIDE: +${chatRes.data.delta} points awarded. [${chatRes.data.disputesRemaining} chambers remaining]`);
+
         setData((prev: any) => {
           const newData = { ...prev };
           newData.evaluations[0].score = chatRes.data.newScore;
@@ -86,6 +103,8 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           ];
           return newData;
         });
+      } else {
+        addMessage("system", `> Claim rejected. [${chatRes.data.disputesRemaining} chambers remaining]`);
       }
     } catch (err: any) {
       addMessage("judge", `**Error:** ${err.message}`, true);
@@ -127,7 +146,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         {!isJudgeOpen && (
           <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
             {/* Top Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="bg-[#050505] border border-[#1a1a1a] rounded-xl p-6 relative overflow-hidden group">
                 <div className="absolute inset-0 bg-[#b026ff] opacity-0 group-hover:opacity-5 transition-opacity"></div>
                 <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Current Score</p>
@@ -146,6 +165,13 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 <p className="text-2xl font-bold text-gray-300">
                   {disputes.filter((d: any) => d.scoreDelta > 0).length} <span className="text-sm text-gray-600 font-normal">/ {disputes.length}</span>
                 </p>
+              </div>
+              <div className={`bg-[#050505] border rounded-xl p-6 ${isLocked ? "border-red-900/50" : "border-[#1a1a1a]"}`}>
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Chambers Left</p>
+                <p className={`text-2xl font-bold ${isLocked ? "text-red-400" : "text-gray-300"}`}>
+                  {disputesRemaining} <span className="text-sm text-gray-600 font-normal">/ 5</span>
+                </p>
+                {isLocked && <p className="text-red-500 text-[10px] mt-1 font-mono">LOCKED</p>}
               </div>
             </div>
 
@@ -323,19 +349,26 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
               </div>
 
               <div className="p-4 bg-black border-t border-[#1a1a1a]">
-                <form onSubmit={handleChallengeSubmit} className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={challengeInput}
-                    onChange={(e) => setChallengeInput(e.target.value)}
-                    disabled={isJudging}
-                    placeholder="Dispute your score... (e.g. 'You missed my private AWS repo')"
-                    className="w-full bg-[#0a0a0a] border border-[#222] text-white text-sm rounded-xl py-3 pl-4 pr-28 focus:outline-none focus:border-[#b026ff] focus:ring-1 focus:ring-[#b026ff] transition-all"
-                  />
-                  <button type="submit" disabled={!challengeInput.trim() || isJudging} className="absolute right-2 top-1.5 bottom-1.5 bg-[#b026ff] hover:bg-[#9015d8] text-white text-xs font-bold px-4 rounded-lg transition-all disabled:opacity-50">
-                    Send
-                  </button>
-                </form>
+                {isLocked ? (
+                  <div className="text-center py-3 px-4 bg-red-950/20 border border-red-900/30 rounded-xl">
+                    <p className="text-red-400 text-xs font-bold tracking-wider">CHAMBER LOCKED — ALL 5 DISPUTES EXHAUSTED</p>
+                    <p className="text-gray-500 text-[10px] mt-1">Your score is now final and cannot be challenged further.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleChallengeSubmit} className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={challengeInput}
+                      onChange={(e) => setChallengeInput(e.target.value)}
+                      disabled={isJudging}
+                      placeholder={`Dispute your score... (${disputesRemaining} chamber${disputesRemaining !== 1 ? "s" : ""} remaining)`}
+                      className="w-full bg-[#0a0a0a] border border-[#222] text-white text-sm rounded-xl py-3 pl-4 pr-28 focus:outline-none focus:border-[#b026ff] focus:ring-1 focus:ring-[#b026ff] transition-all"
+                    />
+                    <button type="submit" disabled={!challengeInput.trim() || isJudging} className="absolute right-2 top-1.5 bottom-1.5 bg-[#b026ff] hover:bg-[#9015d8] text-white text-xs font-bold px-4 rounded-lg transition-all disabled:opacity-50">
+                      Send
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
           </div>
