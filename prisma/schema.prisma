@@ -57,14 +57,15 @@ model GithubProfile {
 }
 
 model Evaluation {
-  id            String @id @default(cuid())
-  userId        String @unique
-  score         Int
-  baselineScore Int
-  feedback      String
+  id                String @id @default(cuid())
+  userId            String @unique
+  score             Int
+  baselineScore     Int
+  feedback          String
+  disputesRemaining Int    @default(5) // 5-Chamber Rule: max 5 disputes per user
 
   disputes    DisputeLog[]
-  peerRatings PeerRating[] // <-- ADD THIS LINE
+  peerRatings PeerRating[]
 
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
@@ -75,9 +76,16 @@ model PeerRating {
   id           String @id @default(cuid())
   evaluationId String
 
-  humanScore   Int // The 0-100 score the peer suggested
+  humanScore   Int    // The 0-100 score the peer suggested
   reviewerRole String // e.g., "Senior Software Engineer"
   remarks      String @db.Text // The justification they typed out
+
+  // Backpropagation: loss = humanScore - systemScore, AI proposes new weights
+  systemScoreAtTime        Int? // Snapshot of system score when review was submitted
+  proposedSkillWeight      Float?
+  proposedDensityWeight    Float?
+  proposedComplexityWeight Float?
+  weightUpdateApplied      Boolean @default(false)
 
   createdAt  DateTime   @default(now())
   evaluation Evaluation @relation(fields: [evaluationId], references: [id])
@@ -90,6 +98,21 @@ model DisputeLog {
   aiReasoning  String // Why the AI accepted or rejected it
   scoreDelta   Int
 
+  // Backpropagation: AI-proposed ideal weights when dispute is won
+  proposedSkillWeight      Float?
+  proposedDensityWeight    Float?
+  proposedComplexityWeight Float?
+  weightUpdateApplied      Boolean @default(false)
+
   createdAt  DateTime   @default(now())
   evaluation Evaluation @relation(fields: [evaluationId], references: [id])
+}
+
+model SystemWeights {
+  id                    String   @id @default("global_weights")
+  skillWeight           Float    @default(0.50)
+  densityWeight         Float    @default(0.30)
+  complexityWeight      Float    @default(0.20)
+  totalUpdates          Int      @default(0)  // How many times the weights have been updated
+  updatedAt             DateTime @updatedAt
 }

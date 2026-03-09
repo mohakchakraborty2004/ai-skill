@@ -3,10 +3,11 @@
 
 import prisma from "@/lib/prisma";
 import { GoogleGenAI } from "@google/genai";
+import { getGlobalWeights } from "@/lib/weights";
 
-const ai = new GoogleGenAI({ 
+const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
-  apiVersion: "v1alpha" 
+  apiVersion: "v1alpha"
 });
 
 export async function generateEvaluation(userId: string) {
@@ -26,29 +27,32 @@ export async function generateEvaluation(userId: string) {
 
     const { resume, github } = user;
 
+    // Fetch the self-learning global weights (these evolve over time via backpropagation)
+    const weights = await getGlobalWeights();
+
     // 2. The Math: Calculate Alignment ($S_{align}$)
     const claimedSkills = resume.skills.map(s => s.toLowerCase());
     const provenLanguages = github.topLanguages.map(l => l.toLowerCase());
-    
-    const matchedSkills = claimedSkills.filter(skill => 
+
+    const matchedSkills = claimedSkills.filter(skill =>
       provenLanguages.some(lang => lang.includes(skill) || skill.includes(lang))
     );
-    
+
     // Avoid division by zero if they uploaded an empty resume
-    const sAlign = claimedSkills.length > 0 
-      ? (matchedSkills.length / claimedSkills.length) * 100 
+    const sAlign = claimedSkills.length > 0
+      ? (matchedSkills.length / claimedSkills.length) * 100
       : 0;
 
     // 3. The Math: Activity Density ($A_{dens}$)
-    // For MVP, assuming totalCommits reflects recent active repos (max 20 for 100%)
     const aDens = Math.min((github.totalCommits / 20) * 100, 100);
 
     // 4. The Math: Complexity ($P_{comp}$)
-    // For MVP, assuming 50 total stars = 100% complexity score
     const pComp = Math.min((github.totalStars / 50) * 100, 100);
 
-    // 5. Final Weighted Score
-    const finalScore = Math.round((sAlign * 0.5) + (aDens * 0.3) + (pComp * 0.2));
+    // 5. Final Weighted Score using dynamic global weights
+    const finalScore = Math.round(
+      (sAlign * weights.skillWeight) + (aDens * weights.densityWeight) + (pComp * weights.complexityWeight)
+    );
 
     // 6. AI Roadmap / Feedback Generation
     const prompt = `
