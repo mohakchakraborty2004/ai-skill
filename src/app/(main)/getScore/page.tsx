@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { getOrCreateTestUser } from "@/actions/user.actions";
+import { getAuthenticatedUserId } from "@/actions/user.actions";
 import { processGithubProfile } from "@/actions/github.actions";
 import { processResume } from "@/actions/resume.actions";
 import { generateEvaluation } from "@/actions/evaluations.action";
@@ -61,7 +61,7 @@ export default function Home() {
 
     try {
       addMessage("system", "> Initializing secure environment...");
-      const userId = await getOrCreateTestUser();
+      const userId = await getAuthenticatedUserId();
 
       addMessage("system", `> Scanning GitHub profile for @${githubUsername}...`);
       const githubRes = await processGithubProfile(userId, githubUsername);
@@ -111,7 +111,7 @@ const handleChallengeSubmit = async (e: React.FormEvent) => {
       // We need the userId. In a real app, you'd get this from session/auth.
       // Since we generated it in handleSubmit, let's fetch the dummy user again or store it in state.
       // For this MVP, we will just call the helper to get our test user ID again.
-      const userId = await getOrCreateTestUser(); 
+      const userId = await getAuthenticatedUserId(); 
       
       const chatRes = await processChatChallenge(userId, userText);
       

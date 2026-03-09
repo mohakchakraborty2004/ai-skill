@@ -1,12 +1,16 @@
 // src/app/dashboard/page.tsx
-import prisma from "@/lib/prisma"; // Adjust to your db path
+import prisma from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { redirect } from "next/navigation";
 import DashboardClient from "./dashboardClient";
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  // Fetching the user and their relations
+  const session = await getCurrentUser();
+  if (!session) redirect("/login");
+
   const user = await prisma.user.findFirst({
-    where: { email: "test@zynvo.com" }, // Replace with actual session logic later
+    where: { id: session.userId },
     include: {
       github: true,
       resume: true,
