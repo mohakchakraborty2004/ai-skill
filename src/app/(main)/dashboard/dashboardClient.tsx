@@ -22,6 +22,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   const [data, setData] = useState(initialData);
   const [isJudgeOpen, setIsJudgeOpen] = useState(false); 
   const [activeTab, setActiveTab] = useState<string>("overview"); // Accordion state
+  const [isCopied, setIsCopied] = useState(false); // Shareable link state
   
   // Chat State
   const [messages, setMessages] = useState<Message[]>([
@@ -53,6 +54,15 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 
   const addMessage = (role: Message["role"], content: string, isMarkdown = false) => {
     setMessages((prev) => [...prev, { id: Math.random().toString(), role, content, isMarkdown }]);
+  };
+
+  // --- Copy Link Handler ---
+  const handleCopyLink = () => {
+    // Dynamically build the URL based on where the app is hosted
+    const url = `${window.location.origin}/p/${github.username}`;
+    navigator.clipboard.writeText(url);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   const handleChallengeSubmit = async (e: React.FormEvent) => {
@@ -128,16 +138,42 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
           </div>
         </div>
 
-        <button 
-          onClick={() => setIsJudgeOpen(!isJudgeOpen)}
-          className={`px-6 py-3 font-bold rounded-lg transition-all shadow-[0_0_15px_rgba(176,38,255,0.2)] ${
-            isJudgeOpen 
-              ? "bg-transparent border border-gray-700 text-gray-400 hover:text-white" 
-              : "bg-[#12051c] border border-[#b026ff] text-[#b026ff] hover:bg-[#b026ff] hover:text-white"
-          }`}
-        >
-          {isJudgeOpen ? "Close AI Judge" : "Access AI Judge"}
-        </button>
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          {/* Share Profile Button */}
+          <button 
+            onClick={handleCopyLink}
+            className={`w-full sm:w-auto px-5 py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+              isCopied 
+                ? "bg-green-950/40 text-green-400 border border-green-900 shadow-[0_0_10px_rgba(34,197,94,0.2)]" 
+                : "bg-[#050505] text-gray-300 border border-[#222] hover:border-[#b026ff] hover:text-[#b026ff]"
+            }`}
+          >
+            {isCopied ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                Copied Link!
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                Share Profile
+              </>
+            )}
+          </button>
+
+          {/* AI Judge Button */}
+          <button 
+            onClick={() => setIsJudgeOpen(!isJudgeOpen)}
+            className={`w-full sm:w-auto px-6 py-3 font-bold rounded-lg text-sm transition-all shadow-[0_0_15px_rgba(176,38,255,0.2)] ${
+              isJudgeOpen 
+                ? "bg-transparent border border-gray-700 text-gray-400 hover:text-white" 
+                : "bg-[#12051c] border border-[#b026ff] text-[#b026ff] hover:bg-[#b026ff] hover:text-white"
+            }`}
+          >
+            {isJudgeOpen ? "Close AI Judge" : "Access AI Judge"}
+          </button>
+        </div>
       </header>
 
       <div className="max-w-7xl mx-auto w-full">
